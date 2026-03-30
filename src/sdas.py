@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 import random
 
-from structure_pool import StructurePool
+from src.structure_pool import StructurePool
 from experiments.digital_petri_dish import DigitalPetriDish
 
 

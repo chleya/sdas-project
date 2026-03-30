@@ -64,7 +64,7 @@ class StructurePool:
                 id=self.next_id,
                 prototype=observation.copy(),
                 label=label or "initial",
-                utility=0.5,  # 降低初始utility，避免压制后续学习
+                utility=1.0,  # 最高初始utility，让第一个结构完全主导
                 age=0
             )
             self.structures.append(new_struct)
@@ -89,7 +89,7 @@ class StructurePool:
                 id=self.next_id,
                 prototype=observation.copy(),
                 label=label or f"structure_{self.next_id}",
-                utility=0.5,  # 降低初始utility，避免压制有经验的老结构
+                utility=0.8,  # 非常高的初始utility，让新结构立即产生影响
                 age=0
             )
             self.structures.append(new_struct)
@@ -100,23 +100,23 @@ class StructurePool:
             for s in self.structures:
                 sim = self._cosine_similarity(observation, s.prototype)
                 similarities.append((s, sim))
-        elif best_similarity > 0.8:
+        elif best_similarity > 0.6:
             # 强化现有结构
-            best_struct.utility = min(1.0, best_struct.utility + 0.1)
+            best_struct.utility = min(1.0, best_struct.utility + 0.2)  # 大幅增加强化幅度
             best_struct.surprise_history.append(novelty)
             best_struct.mean_similarity = (
-                0.9 * best_struct.mean_similarity + 0.1 * best_similarity
+                0.8 * best_struct.mean_similarity + 0.2 * best_similarity
             )
-            # prototype 缓慢向当前观测漂移，让结构能够适应环境变化
-            best_struct.prototype = 0.95 * best_struct.prototype + 0.05 * observation
+            # prototype 快速向当前观测漂移，让结构能够快速适应环境变化
+            best_struct.prototype = 0.8 * best_struct.prototype + 0.2 * observation  # 大幅增加学习率
             event = "reinforced"
         else:
             # 分支：从最佳匹配分裂出新结构
             new_struct = Structure(
                 id=self.next_id,
-                prototype=0.5 * best_struct.prototype + 0.5 * observation,
+                prototype=0.5 * best_struct.prototype + 0.5 * observation,  # 平衡保留和创新
                 label=label or f"branch_{self.next_id}",
-                utility=0.3,  # 降低初始utility，避免压制有经验的老结构
+                utility=0.7,  # 很高的初始utility
                 age=0
             )
             self.structures.append(new_struct)
@@ -134,9 +134,10 @@ class StructurePool:
         # 剪枝：移除极低utility的结构
         self._prune()
         
-        # 按相似度排序，取前5个
-        similarities.sort(key=lambda x: x[1], reverse=True)
-        top_similar = similarities[:5]
+        # 按相似度和utility的乘积排序，取前5个，确保只有最有用的结构被激活
+        similarities_with_utility = [(s, sim * s.utility) for s, sim in similarities]
+        similarities_with_utility.sort(key=lambda x: x[1], reverse=True)
+        top_similar = [(s, sim) for s, sim in similarities_with_utility[:5]]
         
         return self._build_signal(event, top_similar)
     

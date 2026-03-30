@@ -6,16 +6,16 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 import random
-from structure_pool import StructurePool
+from src.structure_pool import StructurePool
 
 
 @dataclass
 class MiniGridConfig:
     """SDAS MiniGrid配置"""
     # 结构池
-    max_structures: int = 32
-    decay_rate: float = 0.08
-    create_threshold: float = 0.65
+    max_structures: int = 8  # 进一步减少结构数量，提高质量
+    decay_rate: float = 0.03  # 进一步减慢衰减速度
+    create_threshold: float = 0.85  # 进一步提高创建阈值，减少结构创建
     
     # 编码器
     encoder_dim: int = 64
@@ -114,10 +114,12 @@ class MiniGridActionPolicy:
             # 没有活跃结构，随机探索
             return random.randint(0, self.n_actions - 1)
         
-        # 用活跃度加权各结构的Q值
+        # 用相似度和效用的乘积作为权重
         q_values = np.zeros(self.n_actions)
         total_weight = 0
-        for s, weight in active:  # (Structure对象, 相似度权重)
+        for s, sim_weight in active:  # (Structure对象, 相似度权重)
+            # 结合相似度和结构效用作为权重
+            weight = sim_weight * (s.utility + 0.1)  # 加0.1避免权重为0
             q_values += weight * s.action_values[:self.n_actions]
             total_weight += weight
         
@@ -210,14 +212,15 @@ class SDASMiniGridAgent:
         """根据奖励更新结构效用和动作Q值"""
         # 找到上一步激活的结构，给它奖励
         if self.last_active_structure_id is not None and self.last_action is not None:
+            # 只更新最后激活的结构，集中奖励信号
             for s in self.structure_pool.structures:
                 if s.id == self.last_active_structure_id:
                     # 更新效用
-                    delta = reward * 0.2  # 增加学习率
+                    delta = reward * 0.3  # 大幅增加学习率
                     s.utility = np.clip(s.utility + delta, 0, 1.0)
                     
                     # 简单Q-learning更新动作Q值
-                    s.action_values[self.last_action] += 0.2 * (reward - s.action_values[self.last_action])  # 增加学习率
+                    s.action_values[self.last_action] += 0.3 * (reward - s.action_values[self.last_action])  # 大幅增加学习率
                     break
     
     def _generate_label(self, obs: dict) -> str:

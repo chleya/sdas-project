@@ -14,7 +14,7 @@ setup(
     author="SDAS Team",
     author_email="",
     description="Structure-Driven Agent System",
-    long_description=open("README.md").read(),
+    long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/chleya/sdas-project",
     classifiers=[
