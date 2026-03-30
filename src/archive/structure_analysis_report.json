@@ -1,0 +1,104 @@
+{
+  "total_structures": 2,
+  "summary": {
+    "avg_utility": 1.0,
+    "std_utility": 0.0,
+    "avg_age": 171.5,
+    "max_age": 299,
+    "avg_vigor": 0.012753647456179445,
+    "high_utility_count": 2,
+    "low_utility_count": 0,
+    "labels": [
+      "\u907f\u969c",
+      "\u63a2\u7d22\u65b0\u533a\u57df"
+    ]
+  },
+  "structure_details": [
+    {
+      "id": 0,
+      "label": "\u63a2\u7d22\u65b0\u533a\u57df",
+      "age": 299,
+      "utility": 1.0,
+      "vigor": 1.4878542035991934e-11,
+      "status": "decaying",
+      "interpretation": "Explores unknown areas, curious",
+      "prototype_stats": {
+        "mean": 0.06031775879132655,
+        "std": 0.07512230529865208,
+        "min": 0.0,
+        "max": 0.2745017553990399,
+        "sparsity": 0.484375
+      }
+    },
+    {
+      "id": 1,
+      "label": "\u907f\u969c",
+      "age": 44,
+      "utility": 1.0,
+      "vigor": 0.025507294897480347,
+      "status": "decaying",
+      "interpretation": "Avoids obstacles, focuses on safety",
+      "prototype_stats": {
+        "mean": 0.06867964017044102,
+        "std": 0.08831749492172156,
+        "min": 0.0,
+        "max": 0.458409468637374,
+        "sparsity": 0.421875
+      }
+    }
+  ],
+  "clustering": {
+    "n_clusters": 1,
+    "clusters": [
+      {
+        "cluster_id": 0,
+        "structure_ids": [
+          0,
+          1
+        ],
+        "labels": [
+          "\u63a2\u7d22\u65b0\u533a\u57df",
+          "\u907f\u969c"
+        ],
+        "avg_similarity": 0.9276234254929436
+      }
+    ]
+  },
+  "activation_patterns": {
+    "label_distribution": {
+      "\u63a2\u7d22\u65b0\u533a\u57df": 1,
+      "\u907f\u969c": 1
+    },
+    "utility_distribution": {
+      "high (0.7-1.0)": 2,
+      "medium (0.3-0.7)": 0,
+      "low (0.0-0.3)": 0
+    },
+    "age_distribution": {
+      "young (0-10)": 0,
+      "mature (10-50)": 1,
+      "old (50+)": 1
+    }
+  },
+  "lifecycle_analysis": {
+    "creation_order": [
+      {
+        "id": 0,
+        "label": "\u63a2\u7d22\u65b0\u533a\u57df",
+        "current_age": 299,
+        "current_utility": 1.0,
+        "survived": false
+      },
+      {
+        "id": 1,
+        "label": "\u907f\u969c",
+        "current_age": 44,
+        "current_utility": 1.0,
+        "survived": false
+      }
+    ],
+    "survival_rate": 0.0,
+    "avg_lifespan": 171.5
+  },
+  "interpretability_score": 0.6666666666666666
+}
