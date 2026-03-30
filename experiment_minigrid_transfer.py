@@ -8,6 +8,7 @@ import random
 import gymnasium as gym
 import csv
 import os
+from scipy import stats
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.logger import configure
@@ -153,7 +154,7 @@ def main():
     print("Comparing SDAS and PPO on Empty-8x8 → FourRooms transfer")
     print("=" * 60)
     
-    n_seeds = 5  # 增加种子数量到5个
+    n_seeds = 10  # 增加种子数量到10个，提高统计显著性
     n_episodes = 50  # 增加迁移实验的episode数量
     
     # 创建结果目录
@@ -314,6 +315,7 @@ def main():
     print("=" * 60)
     
     # 计算平均值和标准差
+    avg_rewards = {}
     for key, seed_results in results.items():
         seed_results = np.array(seed_results)
         mean_rewards = np.mean(seed_results, axis=0)
@@ -323,14 +325,53 @@ def main():
         avg_50 = np.mean(mean_rewards)
         std_50 = np.mean(std_rewards)
         
-        print(f"{key.replace('_', ' ').title()}:")
-        print(f"  Average reward over 50 episodes: {avg_50:.2f} ± {std_50:.2f}")
-        
         # 计算前10个episode的平均奖励（恢复速度）
         avg_10 = np.mean(mean_rewards[:10])
         std_10 = np.mean(std_rewards[:10])
+        
+        avg_rewards[key] = {
+            'avg_50': avg_50,
+            'std_50': std_50,
+            'avg_10': avg_10,
+            'std_10': std_10,
+            'all_rewards': seed_results
+        }
+        
+        print(f"{key.replace('_', ' ').title()}:")
+        print(f"  Average reward over 50 episodes: {avg_50:.2f} ± {std_50:.2f}")
         print(f"  Average reward over first 10 episodes: {avg_10:.2f} ± {std_10:.2f}")
         print()
+    
+    # 统计显著性分析（t-test）
+    print("=== Statistical Significance Analysis ===")
+    print("=" * 60)
+    
+    # 计算SDAS迁移 vs PPO迁移的t-test
+    sdas_transfer_rewards = np.array([np.mean(seeds) for seeds in results['sdas_transfer']])
+    ppo_transfer_rewards = np.array([np.mean(seeds) for seeds in results['ppo_transfer']])
+    ppo_scratch_rewards = np.array([np.mean(seeds) for seeds in results['ppo_from_scratch']])
+    
+    # SDAS迁移 vs PPO迁移
+    t_stat, p_value = stats.ttest_ind(sdas_transfer_rewards, ppo_transfer_rewards)
+    print(f"SDAS Transfer vs PPO Transfer:")
+    print(f"  t-statistic: {t_stat:.4f}")
+    print(f"  p-value: {p_value:.4f}")
+    if p_value < 0.05:
+        print("  ✓ Statistically significant (p < 0.05)")
+    else:
+        print("  ✗ Not statistically significant (p ≥ 0.05)")
+    print()
+    
+    # SDAS迁移 vs PPO从零开始
+    t_stat, p_value = stats.ttest_ind(sdas_transfer_rewards, ppo_scratch_rewards)
+    print(f"SDAS Transfer vs PPO From Scratch:")
+    print(f"  t-statistic: {t_stat:.4f}")
+    print(f"  p-value: {p_value:.4f}")
+    if p_value < 0.05:
+        print("  ✓ Statistically significant (p < 0.05)")
+    else:
+        print("  ✗ Not statistically significant (p ≥ 0.05)")
+    print()
 
 if __name__ == "__main__":
     main()
