@@ -14,13 +14,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 import random
 
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'experiments'))
-
 from structure_pool import StructurePool
-from digital_petri_dish import DigitalPetriDish
+from experiments.digital_petri_dish import DigitalPetriDish
 
 
 @dataclass

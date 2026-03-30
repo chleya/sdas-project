@@ -15,15 +15,9 @@ import matplotlib.pyplot as plt
 import random
 from dataclasses import dataclass
 
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'experiments'))
-
-from digital_petri_dish import DigitalPetriDish
-from sdas import SDASAgent, Config
-from structure_pool import StructurePool, Structure
+from experiments.digital_petri_dish import DigitalPetriDish
+from src.sdas import SDASAgent, Config
+from src.structure_pool import StructurePool, Structure
 
 
 class FlatQLearningAgent:

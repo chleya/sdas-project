@@ -19,11 +19,7 @@
 
 import numpy as np
 import random
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-from sdas import SDASAgent, Config, run_episode
+from src.sdas import SDASAgent, Config, run_episode
 from digital_petri_dish import DigitalPetriDish
 
 

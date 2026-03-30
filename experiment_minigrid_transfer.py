@@ -5,159 +5,103 @@ MiniGrid迁移实验
 
 import numpy as np
 import random
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+import gymnasium as gym
+from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import DummyVecEnv
+from src.sdas_minigrid import SDASMiniGridAgent, MiniGridConfig
 
-from sdas_minigrid import SDASMiniGridAgent, MiniGridConfig
-
-# 模拟MiniGrid环境
-class MockMiniGridEnv:
+# 真实的MiniGrid环境包装器
+class MiniGridEnvWrapper:
     """
-    模拟MiniGrid环境
-    用于测试SDAS集成
+    MiniGrid环境包装器
+    用于适配SDAS智能体
     """
     
-    def __init__(self, env_type='empty'):
-        self.env_type = env_type
-        self.width = 8
-        self.height = 8
-        self.agent_pos = [0, 0]
-        self.direction = 0  # 0=右, 1=下, 2=左, 3=上
-        self.goal_pos = [7, 7]
-        self.steps = 0
+    def __init__(self, env_id):
+        self.env = gym.make(env_id)
         self.max_steps = 200
-        self.walls = []
-        
-        # 初始化墙壁
-        if env_type == 'four_rooms':
-            # 四房间布局
-            self._init_four_rooms()
-    
-    def _init_four_rooms(self):
-        """初始化四房间布局"""
-        # 非常简化的四房间布局，几乎没有墙壁，只有一个分隔
-        self.walls = [
-            [3, 3]  # 只在中心位置有一个墙壁
-        ]
+        self.steps = 0
     
     def reset(self):
         """重置环境"""
-        self.agent_pos = [0, 0]
-        self.direction = 0
+        obs, _ = self.env.reset()
         self.steps = 0
-        return self._get_obs()
+        return self._process_obs(obs)
     
-    def _get_obs(self):
-        """获取观测"""
+    def _process_obs(self, obs):
+        """处理观测，转换为SDAS所需的格式"""
         return {
-            'agent_pos': self.agent_pos,
-            'direction': self.direction,
-            'mission': 'reach the goal'
+            'agent_pos': [obs['agent_pos'][0], obs['agent_pos'][1]],
+            'direction': obs['direction'],
+            'mission': obs['mission']
         }
     
     def step(self, action):
         """执行动作"""
-        # 动作：0=前进, 1=左转, 2=右转
-        new_pos = self.agent_pos.copy()
-        
-        if action == 0:  # 前进
-            if self.direction == 0:  # 右
-                new_pos[0] = min(new_pos[0] + 1, self.width - 1)
-            elif self.direction == 1:  # 下
-                new_pos[1] = max(new_pos[1] - 1, 0)
-            elif self.direction == 2:  # 左
-                new_pos[0] = max(new_pos[0] - 1, 0)
-            elif self.direction == 3:  # 上
-                new_pos[1] = min(new_pos[1] + 1, self.height - 1)
-        elif action == 1:  # 左转
-            self.direction = (self.direction + 3) % 4
-        elif action == 2:  # 右转
-            self.direction = (self.direction + 1) % 4
-        
-        # 检查墙壁碰撞
-        if new_pos not in self.walls:
-            self.agent_pos = new_pos
-        
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        done = terminated or truncated
         self.steps += 1
         
-        # 计算奖励
-        reward = -0.05  # 适中的每步惩罚
-        done = False
+        # 调整奖励
+        if reward > 0:
+            reward = 15.0  # 目标奖励
+        else:
+            reward = -0.05  # 每步惩罚
         
-        # 到达目标
-        if self.agent_pos == self.goal_pos:
-            reward = 15.0  # 适中的目标奖励
-            done = True
-        
-        # 超时
-        if self.steps >= self.max_steps:
-            done = True
-        
-        return self._get_obs(), reward, done, {}
+        return self._process_obs(obs), reward, done, info
+    
+    def close(self):
+        """关闭环境"""
+        self.env.close()
 
-# 简单的PPO baseline（简化版）
-class SimplePPOAgent:
+# PPO baseline
+class PPOAgent:
     """
-    简单的PPO智能体
+    PPO智能体
     用于作为baseline
     """
     
-    def __init__(self, n_actions=3):
-        self.n_actions = n_actions
-        self.q_table = {}  # 简单的Q表
-        self.learning_rate = 0.1
-        self.epsilon = 0.3
+    def __init__(self, env_id):
+        self.env = DummyVecEnv([lambda: gym.make(env_id)])
+        self.model = PPO('MlpPolicy', self.env, verbose=0)
+        self.n_actions = self.env.action_space.n
     
     def reset(self):
         """重置智能体状态"""
         pass
     
-    def _get_state_key(self, obs):
-        """获取状态键"""
-        return f"{obs['agent_pos'][0]}_{obs['agent_pos'][1]}_{obs['direction']}"
-    
     def step(self, obs):
         """选择动作"""
-        state_key = self._get_state_key(obs)
-        
-        # 初始化Q值
-        if state_key not in self.q_table:
-            self.q_table[state_key] = np.zeros(self.n_actions)
-        
-        # epsilon-greedy
-        if random.random() < self.epsilon:
-            action = random.randint(0, self.n_actions - 1)
-        else:
-            action = int(np.argmax(self.q_table[state_key]))
-        
-        # 记录状态和动作
-        self.last_state = state_key
-        self.last_action = action
-        
-        return action, {}
+        # 转换观测格式
+        # 注意：这里简化处理，实际应该根据PPO模型的需求进行适当转换
+        action, _states = self.model.predict(obs, deterministic=True)
+        return action[0], {}
     
     def update_structure(self, reward):
-        """更新Q表"""
-        if hasattr(self, 'last_state') and hasattr(self, 'last_action'):
-            if self.last_state not in self.q_table:
-                self.q_table[self.last_state] = np.zeros(self.n_actions)
-            
-            # 简单Q-learning更新
-            self.q_table[self.last_state][self.last_action] += \
-                self.learning_rate * (reward - self.q_table[self.last_state][self.last_action])
+        """PPO通过模型训练更新，这里不需要单独更新"""
+        pass
+    
+    def train(self, total_timesteps=10000):
+        """训练PPO模型"""
+        self.model.learn(total_timesteps=total_timesteps)
+    
+    def close(self):
+        """关闭环境"""
+        self.env.close()
 
 # 运行实验
-def run_experiment(agent_type, env_type, n_episodes=50):
+def run_experiment(agent_type, env_id, n_episodes=50):
     """运行实验"""
     # 创建环境
-    env = MockMiniGridEnv(env_type=env_type)
+    env = MiniGridEnvWrapper(env_id)
     
     # 创建智能体
     if agent_type == 'sdas':
         agent = SDASMiniGridAgent()
     else:  # ppo
-        agent = SimplePPOAgent()
+        agent = PPOAgent(env_id)
+        # 训练PPO模型
+        agent.train(total_timesteps=10000)
     
     rewards = []
     
@@ -178,6 +122,11 @@ def run_experiment(agent_type, env_type, n_episodes=50):
         
         if episode % 10 == 0:
             print(f"  Episode {episode+1}: Reward = {total_reward:.2f}")
+    
+    # 关闭环境
+    env.close()
+    if agent_type != 'sdas':
+        agent.close()
     
     return rewards
 
@@ -208,7 +157,7 @@ def main():
         # 1. SDAS在Empty-8x8上训练
         print("1. Training SDAS on Empty-8x8...")
         sdas_agent = SDASMiniGridAgent()
-        env_empty = MockMiniGridEnv(env_type='empty')
+        env_empty = MiniGridEnvWrapper('MiniGrid-Empty-8x8-v0')
         
         for episode in range(100):
             obs = env_empty.reset()
@@ -228,7 +177,7 @@ def main():
         
         # 2. SDAS迁移到FourRooms
         print("2. Transferring SDAS to FourRooms...")
-        env_four_rooms = MockMiniGridEnv(env_type='four_rooms')
+        env_four_rooms = MiniGridEnvWrapper('MiniGrid-FourRooms-v0')
         sdas_transfer_rewards = []
         
         for episode in range(n_episodes):
@@ -251,27 +200,16 @@ def main():
         
         # 3. PPO在Empty-8x8上训练
         print("3. Training PPO on Empty-8x8...")
-        ppo_agent = SimplePPOAgent()
-        
-        for episode in range(50):
-            obs = env_empty.reset()
-            ppo_agent.reset()
-            
-            total_reward = 0
-            done = False
-            
-            while not done:
-                action, info = ppo_agent.step(obs)
-                obs, reward, done, _ = env_empty.step(action)
-                ppo_agent.update_structure(reward)
-                total_reward += reward
+        ppo_agent = PPOAgent('MiniGrid-Empty-8x8-v0')
+        ppo_agent.train(total_timesteps=10000)
         
         # 4. PPO迁移到FourRooms
         print("4. Transferring PPO to FourRooms...")
         ppo_transfer_rewards = []
+        env_ppo_four_rooms = MiniGridEnvWrapper('MiniGrid-FourRooms-v0')
         
         for episode in range(n_episodes):
-            obs = env_four_rooms.reset()
+            obs = env_ppo_four_rooms.reset()
             ppo_agent.reset()
             
             total_reward = 0
@@ -279,7 +217,7 @@ def main():
             
             while not done:
                 action, info = ppo_agent.step(obs)
-                obs, reward, done, _ = env_four_rooms.step(action)
+                obs, reward, done, _ = env_ppo_four_rooms.step(action)
                 ppo_agent.update_structure(reward)
                 total_reward += reward
             
@@ -290,11 +228,12 @@ def main():
         
         # 5. PPO从零开始在FourRooms上训练
         print("5. Training PPO from scratch on FourRooms...")
-        ppo_scratch_agent = SimplePPOAgent()
+        ppo_scratch_agent = PPOAgent('MiniGrid-FourRooms-v0')
+        ppo_scratch_agent.train(total_timesteps=10000)
         ppo_scratch_rewards = []
         
         for episode in range(n_episodes):
-            obs = env_four_rooms.reset()
+            obs = env_ppo_four_rooms.reset()
             ppo_scratch_agent.reset()
             
             total_reward = 0
@@ -302,7 +241,7 @@ def main():
             
             while not done:
                 action, info = ppo_scratch_agent.step(obs)
-                obs, reward, done, _ = env_four_rooms.step(action)
+                obs, reward, done, _ = env_ppo_four_rooms.step(action)
                 ppo_scratch_agent.update_structure(reward)
                 total_reward += reward
             
@@ -315,6 +254,13 @@ def main():
         results['sdas_transfer'].append(sdas_transfer_rewards)
         results['ppo_transfer'].append(ppo_transfer_rewards)
         results['ppo_from_scratch'].append(ppo_scratch_rewards)
+        
+        # 关闭环境
+        env_empty.close()
+        env_four_rooms.close()
+        env_ppo_four_rooms.close()
+        ppo_agent.close()
+        ppo_scratch_agent.close()
     
     # 分析结果
     print("\n=== Results Analysis ===")

@@ -5,11 +5,7 @@ SDAS MiniGrid集成测试
 
 import numpy as np
 import random
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-from sdas_minigrid import SDASMiniGridAgent, MiniGridConfig
+from src.sdas_minigrid import SDASMiniGridAgent, MiniGridConfig
 
 # 模拟MiniGrid环境
 class MockMiniGridEnv:
