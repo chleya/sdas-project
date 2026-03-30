@@ -158,13 +158,73 @@ class StructurePool:
             s.utility = max(0.0, s.utility - 0.002)
     
     def _prune(self):
-        """剪枝：移除低utility结构"""
+        """剪枝：移除低utility结构并合并高冗余结构"""
         if len(self.structures) <= self.max_structures:
             return
         
-        # 按utility排序，保留最高的
-        self.structures.sort(key=lambda s: s.utility, reverse=True)
-        self.structures = self.structures[:self.max_structures]
+        # 首先合并高冗余结构
+        self._merge_redundant_structures()
+        
+        # 如果仍然超过最大结构数，按utility排序，保留最高的
+        if len(self.structures) > self.max_structures:
+            self.structures.sort(key=lambda s: s.utility, reverse=True)
+            self.structures = self.structures[:self.max_structures]
+    
+    def _merge_redundant_structures(self):
+        """合并高冗余结构"""
+        if len(self.structures) < 2:
+            return
+        
+        # 计算结构之间的相似度
+        redundant_pairs = []
+        for i in range(len(self.structures)):
+            for j in range(i + 1, len(self.structures)):
+                sim = self._cosine_similarity(
+                    self.structures[i].prototype,
+                    self.structures[j].prototype
+                )
+                if sim > 0.8:  # 相似度阈值
+                    redundant_pairs.append((i, j, sim))
+        
+        # 按相似度排序
+        redundant_pairs.sort(key=lambda x: x[2], reverse=True)
+        
+        # 合并冗余结构
+        merged = set()
+        for i, j, _ in redundant_pairs:
+            if i not in merged and j not in merged:
+                # 保留utility高的结构，合并utility低的结构
+                if self.structures[i].utility >= self.structures[j].utility:
+                    # 合并到i结构
+                    self.structures[i].utility = (
+                        self.structures[i].utility + self.structures[j].utility
+                    ) / 2
+                    # 原型向量取平均
+                    self.structures[i].prototype = (
+                        self.structures[i].prototype + self.structures[j].prototype
+                    ) / 2
+                    # 动作值取平均
+                    self.structures[i].action_values = (
+                        self.structures[i].action_values + self.structures[j].action_values
+                    ) / 2
+                    merged.add(j)
+                else:
+                    # 合并到j结构
+                    self.structures[j].utility = (
+                        self.structures[i].utility + self.structures[j].utility
+                    ) / 2
+                    # 原型向量取平均
+                    self.structures[j].prototype = (
+                        self.structures[i].prototype + self.structures[j].prototype
+                    ) / 2
+                    # 动作值取平均
+                    self.structures[j].action_values = (
+                        self.structures[i].action_values + self.structures[j].action_values
+                    ) / 2
+                    merged.add(i)
+        
+        # 移除被合并的结构
+        self.structures = [s for i, s in enumerate(self.structures) if i not in merged]
     
     def _build_signal(self, event: str, active: List[Tuple[Structure, float]]) -> Dict:
         """构建返回信号"""

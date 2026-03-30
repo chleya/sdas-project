@@ -6,9 +6,20 @@ MiniGrid迁移实验
 import numpy as np
 import random
 import gymnasium as gym
+import csv
+import os
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.logger import configure
 from src.sdas_minigrid import SDASMiniGridAgent, MiniGridConfig
+
+# 设置固定种子
+def set_seed(seed):
+    """设置随机种子"""
+    random.seed(seed)
+    np.random.seed(seed)
+    gym.utils.seeding.np_random(seed)
+
 
 # 真实的MiniGrid环境包装器
 class MiniGridEnvWrapper:
@@ -61,9 +72,15 @@ class PPOAgent:
     用于作为baseline
     """
     
-    def __init__(self, env_id):
+    def __init__(self, env_id, seed, log_dir=None):
         self.env = DummyVecEnv([lambda: gym.make(env_id)])
-        self.model = PPO('MlpPolicy', self.env, verbose=0)
+        # 设置tensorboard日志
+        if log_dir:
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir)
+            self.model = PPO('MlpPolicy', self.env, verbose=0, tensorboard_log=log_dir)
+        else:
+            self.model = PPO('MlpPolicy', self.env, verbose=0)
         self.n_actions = self.env.action_space.n
     
     def reset(self):
@@ -139,6 +156,17 @@ def main():
     n_seeds = 5  # 增加种子数量到5个
     n_episodes = 50  # 增加迁移实验的episode数量
     
+    # 创建结果目录
+    results_dir = 'results'
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+    
+    # 创建CSV文件
+    csv_file = os.path.join(results_dir, 'minigrid_transfer_results.csv')
+    with open(csv_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Seed', 'Agent', 'Episode', 'Reward'])
+    
     # 存储结果
     results = {
         'sdas_transfer': [],
@@ -151,8 +179,12 @@ def main():
         print("-" * 40)
         
         # 设置随机种子
-        random.seed(seed)
-        np.random.seed(seed)
+        set_seed(seed)
+        
+        # 创建日志目录
+        log_dir = os.path.join('logs', f'seed_{seed}')
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
         
         # 1. SDAS在Empty-8x8上训练
         print("1. Training SDAS on Empty-8x8...")
@@ -195,12 +227,17 @@ def main():
             
             sdas_transfer_rewards.append(total_reward)
             
+            # 写入CSV文件
+            with open(csv_file, 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([seed, 'SDAS_Transfer', episode, total_reward])
+            
             if episode % 10 == 0:
                 print(f"  SDAS Transfer Episode {episode+1}: Reward = {total_reward:.2f}")
         
         # 3. PPO在Empty-8x8上训练
         print("3. Training PPO on Empty-8x8...")
-        ppo_agent = PPOAgent('MiniGrid-Empty-8x8-v0')
+        ppo_agent = PPOAgent('MiniGrid-Empty-8x8-v0', seed, os.path.join(log_dir, 'ppo_empty'))
         ppo_agent.train(total_timesteps=10000)
         
         # 4. PPO迁移到FourRooms
@@ -223,12 +260,17 @@ def main():
             
             ppo_transfer_rewards.append(total_reward)
             
+            # 写入CSV文件
+            with open(csv_file, 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([seed, 'PPO_Transfer', episode, total_reward])
+            
             if episode % 10 == 0:
                 print(f"  PPO Transfer Episode {episode+1}: Reward = {total_reward:.2f}")
         
         # 5. PPO从零开始在FourRooms上训练
         print("5. Training PPO from scratch on FourRooms...")
-        ppo_scratch_agent = PPOAgent('MiniGrid-FourRooms-v0')
+        ppo_scratch_agent = PPOAgent('MiniGrid-FourRooms-v0', seed, os.path.join(log_dir, 'ppo_fourrooms_scratch'))
         ppo_scratch_agent.train(total_timesteps=10000)
         ppo_scratch_rewards = []
         
@@ -246,6 +288,11 @@ def main():
                 total_reward += reward
             
             ppo_scratch_rewards.append(total_reward)
+            
+            # 写入CSV文件
+            with open(csv_file, 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([seed, 'PPO_Scratch', episode, total_reward])
             
             if episode % 10 == 0:
                 print(f"  PPO Scratch Episode {episode+1}: Reward = {total_reward:.2f}")

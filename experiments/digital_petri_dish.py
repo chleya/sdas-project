@@ -206,6 +206,10 @@ class DigitalPetriDish:
 
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    from src.sdas import SDASAgent
+    
+    # 测试环境基本功能
     env = DigitalPetriDish(width=10, height=10, n_obstacles=15, n_energy=3)
     
     print("=== Digital Petri Dish ===")
@@ -224,3 +228,54 @@ if __name__ == "__main__":
             break
     
     print("\n" + env.render())
+    
+    # 测试结构数量随环境复杂度变化
+    print("\n=== 测试结构数量随环境复杂度变化 ===")
+    
+    # 不同复杂度的环境
+    complexities = [
+        (10, 10, 5, 2),   # 简单
+        (15, 15, 15, 3),  # 中等
+        (20, 20, 30, 5),  # 复杂
+        (25, 25, 50, 8)   # 非常复杂
+    ]
+    
+    structure_counts = []
+    complexity_labels = []
+    
+    for width, height, n_obstacles, n_energy in complexities:
+        print(f"\n测试环境: {width}x{height}, 障碍物: {n_obstacles}, 能量: {n_energy}")
+        
+        # 创建环境和智能体
+        env = DigitalPetriDish(width=width, height=height, n_obstacles=n_obstacles, n_energy=n_energy)
+        agent = SDASAgent()
+        
+        # 运行一定步数
+        max_steps = 200
+        for step in range(max_steps):
+            obs = env._get_obs()
+            action, info = agent.step(obs)
+            obs, reward, done = env.step(action)
+            agent.update_structure(reward)
+            
+            if done:
+                break
+        
+        # 记录结构数量
+        structure_count = len(agent.structure_pool.structures)
+        structure_counts.append(structure_count)
+        complexity_labels.append(f"{width}x{height}, {n_obstacles}障, {n_energy}能")
+        
+        print(f"  结构数量: {structure_count}")
+    
+    # 绘制结构数量随复杂度变化的曲线
+    plt.figure(figsize=(10, 6))
+    plt.bar(range(len(complexities)), structure_counts, tick_label=complexity_labels)
+    plt.xlabel('环境复杂度')
+    plt.ylabel('结构数量')
+    plt.title('结构数量随环境复杂度的变化')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.savefig('structure_count_vs_complexity.png')
+    print("\n结构数量变化曲线已保存为 structure_count_vs_complexity.png")
+    plt.show()

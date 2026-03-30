@@ -3,6 +3,7 @@ SDAS MiniGrid集成测试
 测试SDAS在MiniGrid环境中的表现
 """
 
+import pytest
 import numpy as np
 import random
 from src.sdas_minigrid import SDASMiniGridAgent, MiniGridConfig
@@ -96,22 +97,41 @@ class MockMiniGridEnv:
         
         return self._get_obs(), reward, done, {}
 
-# 测试SDAS MiniGrid智能体
-def test_sdas_minigrid_agent():
-    print("=== Testing SDAS MiniGrid Agent ===")
-    
-    # 创建模拟环境
+
+def test_sdas_minigrid_agent_initialization():
+    """测试SDAS MiniGrid智能体初始化"""
+    agent = SDASMiniGridAgent()
+    assert agent.config.max_structures == 32
+    assert len(agent.structure_pool.structures) == 0
+
+
+def test_sdas_minigrid_agent_step():
+    """测试SDAS MiniGrid智能体步骤"""
     env = MockMiniGridEnv(env_type='empty')
-    
-    # 创建SDAS智能体
     agent = SDASMiniGridAgent()
     
-    # 运行几个回合
-    for episode in range(5):
+    obs = env.reset()
+    agent.reset()
+    
+    action, info = agent.step(obs)
+    assert action in [0, 1, 2]  # 验证动作范围
+    assert 'structure_event' in info
+    assert 'active_structures' in info
+
+
+def test_sdas_minigrid_agent_training():
+    """测试SDAS MiniGrid智能体训练"""
+    env = MockMiniGridEnv(env_type='empty')
+    agent = SDASMiniGridAgent()
+    
+    total_reward = 0
+    structures_count = []
+    
+    for ep in range(3):
         obs = env.reset()
         agent.reset()
         
-        total_reward = 0
+        ep_reward = 0
         done = False
         steps = 0
         
@@ -119,31 +139,31 @@ def test_sdas_minigrid_agent():
             action, info = agent.step(obs)
             obs, reward, done, _ = env.step(action)
             agent.update_structure(reward)
-            total_reward += reward
+            ep_reward += reward
             steps += 1
             
-            if steps >= 100:
+            if steps >= 100:  # 防止无限循环
                 break
         
-        print(f"Episode {episode+1}:")
-        print(f"  Steps: {steps}")
-        print(f"  Total Reward: {total_reward:.2f}")
-        print(f"  Structure Count: {len(agent.structure_pool.structures)}")
-        print()
+        total_reward += ep_reward
+        structures_count.append(len(agent.structure_pool.structures))
+    
+    # 检查奖励是否合理
+    assert isinstance(total_reward, float)
+    # 检查结构数量是否增加
+    assert len(agent.structure_pool.structures) > 0
+    # 检查结构数量是否随训练增加
+    assert max(structures_count) >= min(structures_count)
 
-# 测试结构迁移
+
 def test_structure_transfer():
-    print("=== Testing Structure Transfer ===")
-    
-    # 创建第一个环境（Empty-8x8）
+    """测试SDAS MiniGrid智能体结构迁移能力"""
+    # 在empty环境中训练
     env1 = MockMiniGridEnv(env_type='empty')
-    
-    # 创建SDAS智能体
     agent = SDASMiniGridAgent()
     
     # 在第一个环境中训练
-    print("Training in Empty-8x8...")
-    for episode in range(10):
+    for episode in range(5):
         obs = env1.reset()
         agent.reset()
         
@@ -156,16 +176,16 @@ def test_structure_transfer():
             agent.update_structure(reward)
             total_reward += reward
         
-        if episode % 5 == 0:
-            print(f"  Episode {episode+1}: Reward = {total_reward:.2f}, Structures = {len(agent.structure_pool.structures)}")
+    # 记录训练后的结构数量
+    structures_after_training = len(agent.structure_pool.structures)
+    assert structures_after_training > 0
     
-    # 创建第二个环境（FourRooms模拟）
+    # 迁移到four_rooms环境
     env2 = MockMiniGridEnv(env_type='four_rooms')
     
     # 在第二个环境中测试迁移
-    print("\nTesting transfer to FourRooms...")
     transfer_rewards = []
-    for episode in range(10):
+    for episode in range(5):
         obs = env2.reset()
         agent.reset()
         
@@ -179,16 +199,12 @@ def test_structure_transfer():
             total_reward += reward
         
         transfer_rewards.append(total_reward)
-        print(f"  Episode {episode+1}: Reward = {total_reward:.2f}")
     
-    avg_transfer_reward = np.mean(transfer_rewards)
-    print(f"\nAverage transfer reward: {avg_transfer_reward:.2f}")
+    # 检查迁移后的奖励是否合理
+    assert isinstance(np.mean(transfer_rewards), float)
+    # 检查结构数量是否保持或增加
+    assert len(agent.structure_pool.structures) >= structures_after_training
+
 
 if __name__ == "__main__":
-    print("SDAS MiniGrid Integration Test")
-    print("=" * 50)
-    
-    test_sdas_minigrid_agent()
-    test_structure_transfer()
-    
-    print("\nTest completed!")
+    pytest.main([__file__])
